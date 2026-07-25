@@ -1,17 +1,12 @@
 package app;
 
-import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
+import javafx.application.Application;
 
-/** Launches FairFare's Java Core desktop interface. */
+/** JavaFX entry point for the FairFare desktop application. */
 public final class Main {
     private Main() { }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); }
-            catch (Exception ignored) { }
-            new FairFareFrame().setVisible(true);
-        });
+        Application.launch(FairFareApplication.class, args);
     }
 }

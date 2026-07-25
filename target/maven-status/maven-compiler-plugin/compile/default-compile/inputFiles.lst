@@ -1,0 +1,17 @@
+C:\Users\joeln\Videos\FairFare\src\app\FairFareApplication.java
+C:\Users\joeln\Videos\FairFare\src\app\Main.java
+C:\Users\joeln\Videos\FairFare\src\model\Balance.java
+C:\Users\joeln\Videos\FairFare\src\model\Expense.java
+C:\Users\joeln\Videos\FairFare\src\model\Group.java
+C:\Users\joeln\Videos\FairFare\src\model\User.java
+C:\Users\joeln\Videos\FairFare\src\service\AuthService.java
+C:\Users\joeln\Videos\FairFare\src\service\BalanceManager.java
+C:\Users\joeln\Videos\FairFare\src\service\DebtSimplifier.java
+C:\Users\joeln\Videos\FairFare\src\service\ExpenseManager.java
+C:\Users\joeln\Videos\FairFare\src\service\GroupService.java
+C:\Users\joeln\Videos\FairFare\src\strategy\DistanceSplit.java
+C:\Users\joeln\Videos\FairFare\src\strategy\EqualSplit.java
+C:\Users\joeln\Videos\FairFare\src\strategy\PercentageSplit.java
+C:\Users\joeln\Videos\FairFare\src\strategy\ProportionalSplitSupport.java
+C:\Users\joeln\Videos\FairFare\src\strategy\SplitStrategy.java
+C:\Users\joeln\Videos\FairFare\src\strategy\WeightSplit.java
