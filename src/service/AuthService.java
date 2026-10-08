@@ -1,6 +1,7 @@
 package service;
 
 import model.User;
+import persistence.FairFareRepository;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -9,6 +10,12 @@ import java.util.Optional;
 /** Manages in-memory registration and credential validation. */
 public final class AuthService {
     private final Map<String, User> usersByUsername = new LinkedHashMap<>();
+    private final FairFareRepository repository;
+
+    public AuthService(FairFareRepository repository, Collection<User> existingUsers) {
+        this.repository = java.util.Objects.requireNonNull(repository, "repository must not be null");
+        existingUsers.forEach(user -> usersByUsername.put(user.getUsername(), user));
+    }
 
     public User register(String username, String email, String password) {
         if (usersByUsername.containsKey(username)) throw new IllegalArgumentException("Username is already taken");
@@ -16,6 +23,7 @@ public final class AuthService {
             throw new IllegalArgumentException("Email is already registered");
         }
         User user = new User(username, email, password);
+        repository.saveUser(user);
         usersByUsername.put(username, user);
         return user;
     }

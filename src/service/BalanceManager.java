@@ -6,6 +6,7 @@ import model.Group;
 import model.User;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,15 @@ public final class BalanceManager {
     public void applyExpense(Group group, Expense expense) {
         for (Map.Entry<User, BigDecimal> share : expense.getShares().entrySet()) {
             if (!share.getKey().equals(expense.getPayer())) addDebt(group, share.getKey(), expense.getPayer(), share.getValue());
+        }
+    }
+
+    /** Rebuilds derived balances from all stored expense records on application startup. */
+    public void rebuild(Collection<Group> groups) {
+        ledger.clear();
+        for (Group group : groups) {
+            group.replaceBalances(List.of());
+            for (Expense expense : group.getExpenses()) applyExpense(group, expense);
         }
     }
 

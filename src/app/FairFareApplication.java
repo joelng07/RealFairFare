@@ -34,6 +34,9 @@ import service.AuthService;
 import service.BalanceManager;
 import service.ExpenseManager;
 import service.GroupService;
+import persistence.DatabaseConfig;
+import persistence.DatabaseException;
+import persistence.FairFareRepository;
 import strategy.DistanceSplit;
 import strategy.EqualSplit;
 import strategy.PercentageSplit;
@@ -51,10 +54,10 @@ import java.util.Map;
  * every action delegates to the corresponding application service.
  */
 public final class FairFareApplication extends Application {
-    private final AuthService auth = new AuthService();
-    private final GroupService groups = new GroupService();
-    private final BalanceManager balances = new BalanceManager();
-    private final ExpenseManager expenses = new ExpenseManager(balances);
+    private AuthService auth;
+    private GroupService groups;
+    private BalanceManager balances;
+    private ExpenseManager expenses;
     private final ObservableList<Group> groupItems = FXCollections.observableArrayList();
     private Stage stage;
     private User currentUser;
@@ -70,8 +73,29 @@ public final class FairFareApplication extends Application {
         stage.setTitle("FairFare · Spend together, stay clear");
         stage.setMinWidth(980);
         stage.setMinHeight(680);
+        try {
+            FairFareRepository repository = new FairFareRepository(DatabaseConfig.local());
+            FairFareRepository.PersistedData data = repository.load();
+            auth = new AuthService(repository, data.users());
+            groups = new GroupService(repository, new ArrayList<>(data.groups()));
+            balances = new BalanceManager();
+            balances.rebuild(data.groups());
+            expenses = new ExpenseManager(balances, repository);
+        } catch (DatabaseException exception) {
+            showDatabaseSetup(primaryStage, exception);
+            return;
+        }
         showWelcome();
         stage.show();
+    }
+
+    private void showDatabaseSetup(Stage owner, DatabaseException exception) {
+        Alert alert = new Alert(Alert.AlertType.ERROR, "FairFare could not open its local data file.\n\n"
+                + "Check that this Windows account can write to its Local AppData folder, then reopen the app.", ButtonType.CLOSE);
+        alert.setTitle("Local storage unavailable");
+        alert.setHeaderText("FairFare could not open its local database");
+        alert.initOwner(owner);
+        alert.showAndWait();
     }
 
     private void showWelcome() {

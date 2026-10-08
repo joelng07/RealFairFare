@@ -60,6 +60,12 @@ public final class Expense {
         return new Expense(id, title, amount, payer, participants, splitInputs, calculatedShares, createdAt);
     }
 
+    /** Recreates a stored expense without rerunning its original split algorithm. */
+    public static Expense restore(UUID id, String title, BigDecimal amount, User payer, List<User> participants,
+                                  Map<User, BigDecimal> splitInputs, Map<User, BigDecimal> shares, Instant createdAt) {
+        return new Expense(id, title, amount, payer, participants, splitInputs, shares, createdAt);
+    }
+
     public UUID getId() { return id; }
     public String getTitle() { return title; }
     public BigDecimal getAmount() { return amount; }

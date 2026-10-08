@@ -1,11 +1,14 @@
 service\ExpenseManager.class
 model\Balance.class
+persistence\FairFareRepository.class
 service\AuthService.class
 app\Main.class
 service\DebtSimplifier.class
 model\Group.class
 strategy\EqualSplit.class
 model\Expense.class
+persistence\DatabaseConfig.class
+persistence\FairFareRepository$PersistedData.class
 service\BalanceManager.class
 strategy\DistanceSplit.class
 strategy\SplitStrategy.class
@@ -13,5 +16,7 @@ app\FairFareApplication.class
 strategy\PercentageSplit.class
 service\GroupService.class
 strategy\WeightSplit.class
+persistence\DatabaseException.class
+persistence\FairFareRepository$SqlConsumer.class
 strategy\ProportionalSplitSupport.class
 model\User.class
