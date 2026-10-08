@@ -32,4 +32,9 @@ public final class GroupService {
         }
     }
     public List<Group> groupsFor(User user) { return user.getGroups(); }
+    public List<Group> allGroups() { return List.copyOf(groups); }
+    public void removeGroup(Group group) {
+        groups.remove(Objects.requireNonNull(group, "group must not be null"));
+        group.getMembers().forEach(member -> member.leaveGroup(group));
+    }
 }

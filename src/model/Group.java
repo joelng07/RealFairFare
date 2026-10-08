@@ -9,7 +9,7 @@ import java.util.UUID;
 /** Owns the members, expense history, and outstanding balances for one sharing context. */
 public final class Group {
     private final UUID id;
-    private final String name;
+    private String name;
     private final List<User> members = new ArrayList<>();
     private final List<Expense> expenses = new ArrayList<>();
     private final List<Balance> balances = new ArrayList<>();
@@ -46,8 +46,21 @@ public final class Group {
         user.leaveGroup(this);
     }
 
+    public void rename(String name) {
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("group name must not be blank");
+        this.name = name.trim();
+    }
+
     public void addExpense(Expense expense) {
         expenses.add(Objects.requireNonNull(expense, "expense must not be null"));
+    }
+
+    public void removeExpense(Expense expense) { expenses.remove(Objects.requireNonNull(expense, "expense must not be null")); }
+
+    public void replaceExpense(Expense original, Expense replacement) {
+        int index = expenses.indexOf(Objects.requireNonNull(original, "original must not be null"));
+        if (index < 0) throw new IllegalArgumentException("expense does not belong to this group");
+        expenses.set(index, Objects.requireNonNull(replacement, "replacement must not be null"));
     }
 
     public void addBalance(Balance balance) {

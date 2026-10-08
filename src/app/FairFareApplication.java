@@ -17,6 +17,9 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.FlowPane;
@@ -28,8 +31,11 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import model.Balance;
+import model.Expense;
 import model.Group;
 import model.User;
+import model.UserRole;
+import service.AdminService;
 import service.AuthService;
 import service.BalanceManager;
 import service.ExpenseManager;
@@ -58,6 +64,7 @@ public final class FairFareApplication extends Application {
     private GroupService groups;
     private BalanceManager balances;
     private ExpenseManager expenses;
+    private AdminService admin;
     private final ObservableList<Group> groupItems = FXCollections.observableArrayList();
     private Stage stage;
     private User currentUser;
@@ -75,12 +82,15 @@ public final class FairFareApplication extends Application {
         stage.setMinHeight(680);
         try {
             FairFareRepository repository = new FairFareRepository(DatabaseConfig.local());
+            boolean administratorCreated = repository.ensureAdministrator();
             FairFareRepository.PersistedData data = repository.load();
             auth = new AuthService(repository, data.users());
             groups = new GroupService(repository, new ArrayList<>(data.groups()));
             balances = new BalanceManager();
             balances.rebuild(data.groups());
             expenses = new ExpenseManager(balances, repository);
+            admin = new AdminService(auth, groups, balances, repository);
+            if (administratorCreated) System.out.println("FairFare administrator created: " + FairFareRepository.DEFAULT_ADMIN_USERNAME);
         } catch (DatabaseException exception) {
             showDatabaseSetup(primaryStage, exception);
             return;
@@ -156,10 +166,13 @@ public final class FairFareApplication extends Application {
         Label section = new Label("WORKSPACE"); section.getStyleClass().add("side-caption");
         Button overview = navButton("⌂   Overview"); overview.getStyleClass().add("nav-active"); overview.setOnAction(event -> { selectedGroup = null; refreshDashboard(); });
         Button groupsButton = navButton("◈   My groups"); groupsButton.setOnAction(event -> { if (!groupItems.isEmpty()) { selectedGroup = groupItems.get(0); refreshDashboard(); } });
+        Button adminButton = navButton("⚙   Admin console"); adminButton.setOnAction(event -> showAdminConsole());
         Region growth = spacer(); VBox.setVgrow(growth, Priority.ALWAYS);
         Label user = new Label(currentUser.getUsername()); user.getStyleClass().add("user-name"); Label email = new Label(currentUser.getEmail()); email.getStyleClass().add("user-email");
         Button logout = navButton("↪   Log out"); logout.setOnAction(event -> { currentUser = null; selectedGroup = null; showWelcome(); });
-        box.getChildren().addAll(brand, spacer(22), section, overview, groupsButton, growth, user, email, logout); return box;
+        if (currentUser.isAdmin()) box.getChildren().addAll(brand, spacer(22), section, overview, groupsButton, adminButton, growth, user, email, logout);
+        else box.getChildren().addAll(brand, spacer(22), section, overview, groupsButton, growth, user, email, logout);
+        return box;
     }
 
     private HBox topbar() {
@@ -257,6 +270,97 @@ public final class FairFareApplication extends Application {
         String text = selectedGroup.getBalances().isEmpty() ? "Everyone is settled up." : selectedGroup.getBalances().stream().map(this::formatBalance).reduce((a, b) -> a + "\n" + b).orElse("");
         info(selectedGroup.getName() + " · Balances", text);
     }
+
+    /** Administrative workspace with explicit role, group and expense lifecycle controls. */
+    private void showAdminConsole() {
+        if (currentUser == null || !currentUser.isAdmin()) { error("Access denied", "Administrator access is required."); return; }
+        Dialog<ButtonType> dialog = baseDialog("Admin console", "Oversee users, groups, and financial records.");
+        dialog.getDialogPane().setPrefWidth(700);
+        TabPane tabs = new TabPane(adminUsersTab(), adminGroupsTab(), adminExpensesTab());
+        tabs.getTabs().forEach(tab -> tab.setClosable(false));
+        dialog.getDialogPane().setContent(tabs);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.showAndWait();
+        refreshDashboard();
+    }
+
+    private Tab adminUsersTab() {
+        ListView<User> list = new ListView<>(FXCollections.observableArrayList(admin.users(currentUser)));
+        list.setCellFactory(view -> new ListCell<>() {
+            @Override protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername() + "  ·  " + user.getEmail() + "  ·  " + user.getRole());
+            }
+        });
+        Button toggleRole = secondaryButton("Grant / revoke admin");
+        toggleRole.setOnAction(event -> {
+            User selected = list.getSelectionModel().getSelectedItem();
+            if (selected == null) { error("Select a user", "Choose an account from the list first."); return; }
+            try {
+                admin.setRole(currentUser, selected, selected.isAdmin() ? UserRole.USER : UserRole.ADMIN);
+                list.setItems(FXCollections.observableArrayList(admin.users(currentUser)));
+            } catch (IllegalArgumentException exception) { error("Role change unavailable", exception.getMessage()); }
+        });
+        VBox content = new VBox(12, new Label("Select a user, then change their application role."), list, toggleRole); content.setPadding(new Insets(14)); VBox.setVgrow(list, Priority.ALWAYS);
+        return new Tab("Users", content);
+    }
+
+    private Tab adminGroupsTab() {
+        ListView<Group> list = new ListView<>(FXCollections.observableArrayList(admin.groups(currentUser)));
+        list.setCellFactory(view -> new ListCell<>() {
+            @Override protected void updateItem(Group group, boolean empty) {
+                super.updateItem(group, empty);
+                setText(empty || group == null ? null : group.getName() + "  ·  " + group.getMembers().size() + " members · " + group.getExpenses().size() + " expenses");
+            }
+        });
+        Button rename = secondaryButton("Rename group"); rename.setOnAction(event -> renameAdminGroup(list));
+        Button delete = secondaryButton("Delete group"); delete.setOnAction(event -> deleteAdminGroup(list));
+        VBox content = new VBox(12, new Label("Rename or remove groups. Deleting a group also deletes its expenses."), list, new HBox(10, rename, delete)); content.setPadding(new Insets(14)); VBox.setVgrow(list, Priority.ALWAYS);
+        return new Tab("Groups", content);
+    }
+
+    private Tab adminExpensesTab() {
+        ListView<Expense> list = new ListView<>(FXCollections.observableArrayList(admin.expenses(currentUser)));
+        list.setCellFactory(view -> new ListCell<>() {
+            @Override protected void updateItem(Expense expense, boolean empty) {
+                super.updateItem(expense, empty);
+                setText(empty || expense == null ? null : expense.getTitle() + "  ·  ₹" + money(expense.getAmount()) + "  ·  " + expense.getPayer());
+            }
+        });
+        Button rename = secondaryButton("Edit expense title"); rename.setOnAction(event -> renameAdminExpense(list));
+        Button delete = secondaryButton("Delete expense"); delete.setOnAction(event -> deleteAdminExpense(list));
+        VBox content = new VBox(12, new Label("Edit descriptions or remove incorrect expenses. Balances recalculate immediately."), list, new HBox(10, rename, delete)); content.setPadding(new Insets(14)); VBox.setVgrow(list, Priority.ALWAYS);
+        return new Tab("Expenses", content);
+    }
+
+    private void renameAdminGroup(ListView<Group> list) {
+        Group group = list.getSelectionModel().getSelectedItem(); if (group == null) { error("Select a group", "Choose a group first."); return; }
+        TextField name = field(group.getName()); Dialog<ButtonType> dialog = baseDialog("Rename group", "Update this group’s visible name."); dialog.getDialogPane().setContent(labelled("GROUP NAME", name)); dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+        dialog.setResultConverter(button -> { if (button == ButtonType.OK) try { admin.renameGroup(currentUser, group, name.getText()); list.refresh(); } catch (IllegalArgumentException exception) { error("Couldn’t rename group", exception.getMessage()); } return button; }); dialog.showAndWait();
+    }
+
+    private void deleteAdminGroup(ListView<Group> list) {
+        Group group = list.getSelectionModel().getSelectedItem(); if (group == null) { error("Select a group", "Choose a group first."); return; }
+        if (!confirm("Delete “" + group.getName() + "”?", "This permanently removes the group, its members’ membership, and all expenses.")) return;
+        admin.deleteGroup(currentUser, group); list.setItems(FXCollections.observableArrayList(admin.groups(currentUser))); selectedGroup = null;
+    }
+
+    private void renameAdminExpense(ListView<Expense> list) {
+        Expense expense = list.getSelectionModel().getSelectedItem(); if (expense == null) { error("Select an expense", "Choose an expense first."); return; }
+        Group group = groupFor(expense); if (group == null) return;
+        TextField title = field(expense.getTitle()); Dialog<ButtonType> dialog = baseDialog("Edit expense", "Update the description; the amount and calculated shares are preserved."); dialog.getDialogPane().setContent(labelled("EXPENSE TITLE", title)); dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+        dialog.setResultConverter(button -> { if (button == ButtonType.OK) try { admin.renameExpense(currentUser, group, expense, title.getText()); list.setItems(FXCollections.observableArrayList(admin.expenses(currentUser))); } catch (IllegalArgumentException exception) { error("Couldn’t edit expense", exception.getMessage()); } return button; }); dialog.showAndWait();
+    }
+
+    private void deleteAdminExpense(ListView<Expense> list) {
+        Expense expense = list.getSelectionModel().getSelectedItem(); if (expense == null) { error("Select an expense", "Choose an expense first."); return; }
+        Group group = groupFor(expense); if (group == null) return;
+        if (!confirm("Delete “" + expense.getTitle() + "”?", "This permanently removes the expense and recalculates that group’s balances.")) return;
+        admin.deleteExpense(currentUser, group, expense); list.setItems(FXCollections.observableArrayList(admin.expenses(currentUser)));
+    }
+
+    private Group groupFor(Expense expense) { return groups.allGroups().stream().filter(group -> group.getExpenses().contains(expense)).findFirst().orElse(null); }
+    private boolean confirm(String header, String message) { Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.CANCEL, ButtonType.OK); alert.setTitle("FairFare admin"); alert.setHeaderText(header); alert.initOwner(stage); return alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK; }
     private String formatBalance(Balance balance) { return balance.getDebtor() + " owes " + balance.getCreditor() + "  ₹" + money(balance.getAmount()); }
 
     private void refreshDashboard() {

@@ -60,6 +60,11 @@ public final class Expense {
         return new Expense(id, title, amount, payer, participants, splitInputs, calculatedShares, createdAt);
     }
 
+    /** Returns a stored expense with an updated descriptive title and the same financial shares. */
+    public Expense withTitle(String updatedTitle) {
+        return new Expense(id, updatedTitle, amount, payer, participants, splitInputs, shares, createdAt);
+    }
+
     /** Recreates a stored expense without rerunning its original split algorithm. */
     public static Expense restore(UUID id, String title, BigDecimal amount, User payer, List<User> participants,
                                   Map<User, BigDecimal> splitInputs, Map<User, BigDecimal> shares, Instant createdAt) {

@@ -12,23 +12,31 @@ public final class User {
     private final String username;
     private final String email;
     private final String password;
+    private UserRole role;
     private final List<Group> groups = new ArrayList<>();
 
     public User(String username, String email, String password) {
-        this(UUID.randomUUID(), username, email, password);
+        this(UUID.randomUUID(), username, email, password, UserRole.USER);
     }
 
     public User(UUID id, String username, String email, String password) {
+        this(id, username, email, password, UserRole.USER);
+    }
+
+    public User(UUID id, String username, String email, String password, UserRole role) {
         this.id = Objects.requireNonNull(id, "id must not be null");
         this.username = requireText(username, "username");
         this.email = requireText(email, "email");
         this.password = requireText(password, "password");
+        this.role = Objects.requireNonNull(role, "role must not be null");
     }
 
     public UUID getId() { return id; }
     public String getUsername() { return username; }
     public String getEmail() { return email; }
     public String getPassword() { return password; }
+    public UserRole getRole() { return role; }
+    public boolean isAdmin() { return role == UserRole.ADMIN; }
     public List<Group> getGroups() { return Collections.unmodifiableList(groups); }
 
     public void joinGroup(Group group) {
@@ -41,6 +49,9 @@ public final class User {
     public void leaveGroup(Group group) {
         groups.remove(Objects.requireNonNull(group, "group must not be null"));
     }
+
+    /** Changes authority; callers must enforce administrator authorization. */
+    public void setRole(UserRole role) { this.role = Objects.requireNonNull(role, "role must not be null"); }
 
     private static String requireText(String value, String field) {
         if (value == null || value.isBlank()) {
